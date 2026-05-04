@@ -1,8 +1,7 @@
 import json
 import os
-from getpass import getpass
 from datetime import datetime
-
+from getpass import getpass
 
 DB_FILE = "db.json"
 
@@ -10,7 +9,6 @@ DB_FILE = "db.json"
 def load_db():
     if not os.path.exists(DB_FILE):
         return {"users": {}}
-    
     with open(DB_FILE, "r") as f:
         return json.load(f)
 
@@ -21,60 +19,65 @@ def save_db(db):
 
 
 def register():
-    username = input("Choose a username:" ).strip()
+    username = input("Choose a username: ").strip()
     if not username:
-        print("Username cant be empty.")
-        return 
-
+        print("Username cannot be empty.")
+        return
     db = load_db()
-
     if username in db["users"]:
         print("That username is already taken.")
         return
-
     password = getpass("Choose a password: ")
     if not password:
-        print("Password cant be empty.")
+        print("Password cannot be empty.")
         return
-
     db["users"][username] = {
         "password": password,
         "balance": 0.0,
-        "transactions": []
+        "transactions": [],
     }
-
     save_db(db)
     print(f"Account created for '{username}'")
+
 
 def login():
     username = input("Username: ").strip()
     password = getpass("Password: ")
-    
     db = load_db()
     user = db["users"].get(username)
-    
     if user is None or user["password"] != password:
         print("Invalid username or password")
         return None
-    
     print(f"Welcome back, {username}")
     return username
 
+
 def show_balance(username):
     db = load_db()
-    print(f"Current balance: {db['users'][username]['balance']:.2f}")
+    print(f"Current blanace: ${db['users'][username]['balance']:.2f}")
+
 
 def read_amount(prompt):
     raw = input(prompt).strip()
     try:
         amount = float(raw)
     except ValueError:
-        print("Thats not valid number.")
+        print("That's not valid number.")
         return None
     if amount <= 0:
-        print("Amount must be greater than zero")
+        print("Amount must be greater thant zero")
         return None
     return round(amount, 2)
+
+
+def add_transaction(user, entry):
+    user["transactions"].append(
+        {
+            **entry,
+            "at": datetime.now().isoformat(timespec="seconds"),
+        }
+    )
+
 
 def deposit(username):
     amount = read_amount("Amount to deposit: $")
@@ -94,11 +97,48 @@ def deposit(username):
     print(f"Deposited ${amount:.2f}. New balance: ${user['balance']:.2f}")
 
 
-def add_transaction(user, entry):
-    user["transactions"].append({
-        **entry,
-        "at": datetime.now().isoformat(timespec="seconds"),
-    })
+def withdraw(username):
+    amount = read_amount("Amount to withdraw: $")
+    if amount is None:
+        return
+    db = load_db()
+    user = db["users"][username]
+    if user["balance"] < amount:
+        print("Insufficient funds.")
+        return
+    user["balance"] -= amount
+    add_transaction(user, {"type": "withdraw", "amount": amount})
+    save_db(db)
+    print(f"Withdrew ${amount:.2f}. New balance: ${user['balance']}")
+
+
+def transfer(username):
+    recipient = input("Recipient username: ").strip()
+    db = load_db()
+
+    if recipient not in db["users"]:
+        print("That user does not exist.")
+
+    if recipient == username:
+        print("You cannot transfer to yourself.")
+        return
+    amount = read_amount("Amount to transfer: $")
+    if amount is None:
+        return
+    sender = db["users"][username]
+    if sender["balance"] < amount:
+        print("Insufficient funds.")
+        return
+    reciver = db["users"][recipient]
+    sender["balance"] -= amount
+    reciver["balance"] += amount
+    add_transaction(sender, {"type": "transfer_out", "amount": amount, "to": recipient})
+    add_transaction(reciver, {"type": "transfer_in", "amount": amount, "from": username})
+    save_db(db)
+    print(f"Transfered ${amount:.2f} to {recipient},  New balance: ${sender['balance']:.2f}")
+
+
+
 
 
 def user_menu(username):
@@ -106,13 +146,19 @@ def user_menu(username):
         print(f"\n--- Logged in as {username} ---")
         print("1. Check balance")
         print("2. Deposit")
-        print("3. Logout")
+        print("3. Withdraw")
+        print("4. Transfer")
+        print("5. Logout")
         choice = input("Choose an option: ").strip()
         if choice == "1":
             show_balance(username)
         elif choice == "2":
             deposit(username)
-        elif choice == "2":
+        elif choice == "3":
+            withdraw(username)
+        elif choice == "4":
+            transfer(username)
+        elif choice == "5":
             print("Logged out.")
             return
         else:
@@ -125,21 +171,18 @@ def main():
         print("1. Register")
         print("2. Login")
         print("3. Quit")
-
-        Choice = input("Choose an option: ").strip()
-
-        if Choice == "1":
+        choice = input("Choose an option: ").strip()
+        if choice == "1":
             register()
-        elif Choice == "2":
+        elif choice == "2":
             user = login()
             if user:
                 user_menu(user)
-        elif Choice == "3":
+        elif choice == "3":
             print("Goodbye!")
             return
         else:
             print("Invalid choice.")
-
 
 
 if __name__ == "__main__":
